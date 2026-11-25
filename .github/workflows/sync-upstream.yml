@@ -1,0 +1,38 @@
+name: Sync Upstream
+
+# 每天检查一次上游 xixu-me/Xget；有更新就合并进本 fork 的 main。
+# push 到 main 会触发仓库自带的 CI，CI 成功后再触发
+# "Deploy to Cloudflare Workers" 完成自动部署。
+on:
+  schedule:
+    - cron: "23 2 * * *"   # UTC 02:23
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch and merge upstream
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/xixu-me/xget.git
+          git fetch upstream main
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse upstream/main)" ]; then
+            echo "已是最新，无需同步"
+            exit 0
+          fi
+          echo "发现上游更新，尝试 fast-forward 合并"
+          git merge --ff-only upstream/main
+          git push origin HEAD:main
+          echo "同步完成，等待 CI 触发部署"
